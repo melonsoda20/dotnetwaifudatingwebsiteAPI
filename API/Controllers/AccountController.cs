@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using API.Data;
 using API.DTOs;
 using API.Entities;
+using API.Interfaces;
 using API.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,16 +11,18 @@ namespace API.Controllers
     public class AccountController : BaseApiController
     {
         private readonly DataContext _context;
+        private readonly ITokenServices _tokenServices;
         AccountServices accountServices;
 
-        public AccountController(DataContext context)
+        public AccountController(DataContext context, ITokenServices tokenServices)
         {
             _context = context;
+            _tokenServices = tokenServices;
             accountServices = new AccountServices(_context);
         }
 
         [HttpPost("register")]
-        public async Task<ActionResult<AppUser>> Register(RegisterDTO registerDTO){
+        public async Task<ActionResult<UserDTO>> Register(RegisterDTO registerDTO){
             bool isUserAlreadyExists = await accountServices.UserExists(registerDTO.Username);
             
             if(isUserAlreadyExists){
@@ -39,11 +42,14 @@ namespace API.Controllers
                 return BadRequest("Something went wrong");
             }
 
-            return user;
+            return new UserDTO{
+                Username = user.UserName,
+                Token = _tokenServices.GetJWTToken(user)
+            };
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<AppUser>> Login(LoginDTO loginDTO){
+        public async Task<ActionResult<UserDTO>> Login(LoginDTO loginDTO){
             AppUser user = await accountServices.GetUserData(loginDTO.Username);
             
             if(user == null){
@@ -57,7 +63,10 @@ namespace API.Controllers
                 return Unauthorized("Invalid password");
             }
 
-            return user;
+            return new UserDTO{
+                Username = user.UserName,
+                Token = _tokenServices.GetJWTToken(user)
+            };
         }
     }
 }
