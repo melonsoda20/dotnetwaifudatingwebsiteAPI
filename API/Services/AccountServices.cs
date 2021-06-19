@@ -4,10 +4,11 @@ using API.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Security.Cryptography;
+using API.Interfaces;
 
 namespace API.Services
 {
-    public class AccountServices
+    public class AccountServices : IAccountServices
     {
         private readonly DataContext _context;
 

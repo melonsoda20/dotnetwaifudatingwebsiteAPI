@@ -1,43 +1,40 @@
 using System.Threading.Tasks;
-using API.Data;
 using API.DTOs;
 using API.Entities;
 using API.Interfaces;
-using API.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers
 {
     public class AccountController : BaseApiController
     {
-        private readonly DataContext _context;
         private readonly ITokenServices _tokenServices;
-        AccountServices accountServices;
+        private readonly IAccountServices _accountServices;
 
-        public AccountController(DataContext context, ITokenServices tokenServices)
+        public AccountController(ITokenServices tokenServices, IAccountServices accountServices)
         {
-            _context = context;
             _tokenServices = tokenServices;
-            accountServices = new AccountServices(_context);
+            _accountServices = accountServices;
         }
 
         [HttpPost("register")]
         public async Task<ActionResult<UserDTO>> Register(RegisterDTO registerDTO){
-            bool isUserAlreadyExists = await accountServices.UserExists(registerDTO.Username);
+            bool isUserAlreadyExists = await _accountServices.UserExists(registerDTO.Username);
             
             if(isUserAlreadyExists){
                 return BadRequest("Username is taken");
             }
 
-            byte[] encodedPassword = accountServices.EncodePassword(registerDTO.Password);
+            byte[] encodedPassword = _accountServices.EncodePassword(registerDTO.Password);
             
-            AppUser user  = accountServices.GenerateAppUserProject(registerDTO.Username, encodedPassword);
+            AppUser user  = _accountServices.GenerateAppUserProject(registerDTO.Username, encodedPassword);
 
-            bool isRegisterSuccessful = accountServices.RegisterUser(user);
+            bool isRegisterSuccessful = _accountServices.RegisterUser(user);
             if(!isRegisterSuccessful){
                 return BadRequest("Something went wrong");
             }
-            bool isChangesSaved = await accountServices.SaveChangesToUser();
+            
+            bool isChangesSaved = await _accountServices.SaveChangesToUser();
             if(!isChangesSaved){
                 return BadRequest("Something went wrong");
             }
@@ -50,14 +47,14 @@ namespace API.Controllers
 
         [HttpPost("login")]
         public async Task<ActionResult<UserDTO>> Login(LoginDTO loginDTO){
-            AppUser user = await accountServices.GetUserData(loginDTO.Username);
+            AppUser user = await _accountServices.GetUserData(loginDTO.Username);
             
             if(user == null){
                 return Unauthorized("Invalid username");
             }
 
-            byte[] computedHash = accountServices.GetComputedHash(loginDTO.Password, user.PasswordSalt);
-            bool isUserValid = accountServices.CheckUserPassword(computedHash, user.PasswordHash);
+            byte[] computedHash = _accountServices.GetComputedHash(loginDTO.Password, user.PasswordSalt);
+            bool isUserValid = _accountServices.CheckUserPassword(computedHash, user.PasswordHash);
             
             if(!isUserValid){
                 return Unauthorized("Invalid password");
