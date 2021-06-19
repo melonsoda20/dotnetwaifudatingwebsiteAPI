@@ -1,72 +1,63 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using API.Data;
 using API.DTOs;
 using API.Entities;
 using API.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers
 {
     public class AccountController : BaseApiController
     {
         private readonly DataContext _context;
-        // private readonly AccountServices _accountServices;
+        AccountServices accountServices;
 
         public AccountController(DataContext context)
         {
             _context = context;
-            // _accountServices = accountServices;
+            accountServices = new AccountServices(_context);
         }
 
         [HttpPost("register")]
         public async Task<ActionResult<AppUser>> Register(RegisterDTO registerDTO){
-            if(await UserExists(registerDTO.Username)){
+            bool isUserAlreadyExists = await accountServices.UserExists(registerDTO.Username);
+            
+            if(isUserAlreadyExists){
                 return BadRequest("Username is taken");
             }
-            
-            // Using ensures that class will be disposed after the operation is done
-            using HMACSHA512 hmac = new HMACSHA512();
-            byte[] encodedPassword = Encoding.UTF8.GetBytes(registerDTO.Password);
-            
-            AppUser user  = new AppUser{
-                UserName = registerDTO.Username.ToLower(),
-                PasswordHash = hmac.ComputeHash(encodedPassword),
-                PasswordSalt = hmac.Key
-            };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            byte[] encodedPassword = accountServices.EncodePassword(registerDTO.Password);
+            
+            AppUser user  = accountServices.GenerateAppUserProject(registerDTO.Username, encodedPassword);
+
+            bool isRegisterSuccessful = accountServices.RegisterUser(user);
+            if(!isRegisterSuccessful){
+                return BadRequest("Something went wrong");
+            }
+            bool isChangesSaved = await accountServices.SaveChangesToUser();
+            if(!isChangesSaved){
+                return BadRequest("Something went wrong");
+            }
 
             return user;
         }
 
         [HttpPost("login")]
         public async Task<ActionResult<AppUser>> Login(LoginDTO loginDTO){
-            AppUser user = await _context.Users
-                .SingleOrDefaultAsync(user => user.UserName == loginDTO.Username);
-
+            AppUser user = await accountServices.GetUserData(loginDTO.Username);
+            
             if(user == null){
                 return Unauthorized("Invalid username");
             }
 
-            using HMACSHA512 hmac = new HMACSHA512(user.PasswordSalt);
-
-            byte[] computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(loginDTO.Password));
-
-            for(int i = 0; i < computedHash.Length; i++){
-                if(computedHash[i] != user.PasswordHash[i]){
-                    return Unauthorized("Invalid password");
-                }
+            byte[] computedHash = accountServices.GetComputedHash(loginDTO.Password, user.PasswordSalt);
+            bool isUserValid = accountServices.CheckUserPassword(computedHash, user.PasswordHash);
+            
+            if(!isUserValid){
+                return Unauthorized("Invalid password");
             }
 
             return user;
-        }
-
-        private async Task<bool> UserExists(string username){
-            return await _context.Users.AnyAsync(user => user.UserName == username.ToLower());
         }
     }
 }
