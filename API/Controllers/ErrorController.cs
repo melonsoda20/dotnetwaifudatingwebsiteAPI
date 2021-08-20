@@ -20,7 +20,6 @@ namespace API.Controllers
             return "Secret Text!";
         }
 
-        [Authorize]
         [HttpGet("not-found")]
         public ActionResult<AppUser> GetNotFound(){
             AppUser user = _context.Users.Find(-1);
@@ -32,7 +31,6 @@ namespace API.Controllers
             return Ok(user);
         }
 
-        [Authorize]
         [HttpGet("server-error")]
         public ActionResult<string> GetServerError(){
             AppUser user = _context.Users.Find(-1);
@@ -42,7 +40,6 @@ namespace API.Controllers
             return userToReturn;
         }
 
-        [Authorize]
         [HttpGet("bad-request")]
         public ActionResult<string> GetBadRequest(){
             return BadRequest("This was not a good request");
