@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using API.DTOs;
 using API.Entities;
@@ -62,7 +63,8 @@ namespace API.Controllers
 
             return new UserDTO{
                 Username = user.UserName,
-                Token = _tokenServices.GetJWTToken(user)
+                Token = _tokenServices.GetJWTToken(user),
+                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url
             };
         }
     }
