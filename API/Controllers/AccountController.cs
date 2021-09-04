@@ -1,8 +1,11 @@
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using API.DTOs;
 using API.Entities;
 using API.Interfaces;
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers
@@ -11,24 +14,34 @@ namespace API.Controllers
     {
         private readonly ITokenServices _tokenServices;
         private readonly IAccountServices _accountServices;
+        private readonly IMapper _mapper;
 
-        public AccountController(ITokenServices tokenServices, IAccountServices accountServices)
+        public AccountController(ITokenServices tokenServices, 
+                                IAccountServices accountServices,
+                                IMapper mapper)
         {
             _tokenServices = tokenServices;
             _accountServices = accountServices;
+            _mapper = mapper;
         }
 
         [HttpPost("register")]
         public async Task<ActionResult<UserDTO>> Register(RegisterDTO registerDTO){
             bool isUserAlreadyExists = await _accountServices.UserExists(registerDTO.Username);
             
+            AppUser user = _mapper.Map<AppUser>(registerDTO);
+
             if(isUserAlreadyExists){
                 return BadRequest("Username is taken");
             }
 
             byte[] encodedPassword = _accountServices.EncodePassword(registerDTO.Password);
             
-            AppUser user  = _accountServices.GenerateAppUserProject(registerDTO.Username, encodedPassword);
+            using HMACSHA512 hmac = new HMACSHA512();
+
+            user.UserName = registerDTO.Username.ToLower();
+            user.PasswordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(registerDTO.Password));
+            user.PasswordSalt = hmac.Key;
 
             bool isRegisterSuccessful = _accountServices.RegisterUser(user);
             if(!isRegisterSuccessful){
@@ -42,7 +55,8 @@ namespace API.Controllers
 
             return new UserDTO{
                 Username = user.UserName,
-                Token = _tokenServices.GetJWTToken(user)
+                Token = _tokenServices.GetJWTToken(user),
+                KnownAs = user.KnownAs
             };
         }
 
@@ -64,7 +78,8 @@ namespace API.Controllers
             return new UserDTO{
                 Username = user.UserName,
                 Token = _tokenServices.GetJWTToken(user),
-                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url
+                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url,
+                KnownAs = user.KnownAs
             };
         }
     }
